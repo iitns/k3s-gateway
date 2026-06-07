@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Homelab Gateway</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #cbd5e1;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 2rem 2rem 0;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      letter-spacing: -0.03em;
+    }
+
+    header p {
+      margin-top: 0.25rem;
+      font-size: 0.85rem;
+      color: #475569;
+    }
+
+    .toolbar {
+      padding: 1.25rem 2rem;
+    }
+
+    .toolbar input {
+      width: 100%;
+      max-width: 360px;
+      padding: 0.5rem 0.875rem;
+      background: #1e2535;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .toolbar input:focus { border-color: #3b82f6; }
+    .toolbar input::placeholder { color: #475569; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+      padding: 0 2rem 2rem;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 1.25rem;
+      background: #161b27;
+      border: 1px solid #1e2a3a;
+      border-radius: 12px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+    }
+
+    .card:hover {
+      border-color: #3b82f6;
+      box-shadow: 0 4px 20px rgba(59, 130, 246, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .card-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #1e2a3a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #3b82f6;
+      flex-shrink: 0;
+    }
+
+    .card-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .card-desc {
+      font-size: 0.78rem;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    .card-footer {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .card-url {
+      font-size: 0.72rem;
+      color: #3b82f6;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-ns {
+      font-size: 0.68rem;
+      color: #334155;
+      background: #1e2535;
+      border: 1px solid #2d3748;
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .state {
+      grid-column: 1/-1;
+      padding: 4rem 1rem;
+      text-align: center;
+      color: #475569;
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 600px) {
+      header, .toolbar, .grid { padding-left: 1rem; padding-right: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Homelab Gateway</h1>
+    <p>Apps running on the k3s cluster</p>
+  </header>
+  <div class="toolbar">
+    <input id="search" type="text" placeholder="Search apps..." autocomplete="off">
+  </div>
+  <div id="grid" class="grid">
+    <div class="state">Loading...</div>
+  </div>
+
+  <script>
+    const esc = s => String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    let apps = [];
+
+    function render(list) {
+      const grid = document.getElementById('grid');
+      if (!list.length) {
+        grid.innerHTML = '<div class="state">No apps found</div>';
+        return;
+      }
+      grid.innerHTML = list.map(a => `
+        <a class="card" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">
+          <div class="card-avatar">${a.icon ? esc(a.icon) : esc(a.name.charAt(0).toUpperCase())}</div>
+          <div class="card-name">${esc(a.name)}</div>
+          ${a.description ? `<div class="card-desc">${esc(a.description)}</div>` : ''}
+          <div class="card-footer">
+            <span class="card-url">${esc(a.url)}</span>
+            <span class="card-ns">${esc(a.namespace)}</span>
+          </div>
+        </a>
+      `).join('');
+    }
+
+    document.getElementById('search').addEventListener('input', e => {
+      const q = e.target.value.toLowerCase();
+      render(apps.filter(a =>
+        a.name.toLowerCase().includes(q) ||
+        a.description.toLowerCase().includes(q) ||
+        a.namespace.toLowerCase().includes(q)
+      ));
+    });
+
+    fetch('/api/apps')
+      .then(r => r.json())
+      .then(data => { apps = data; render(apps); })
+      .catch(() => {
+        document.getElementById('grid').innerHTML = '<div class="state">Failed to load apps</div>';
+      });
+  </script>
+</body>
+</html>

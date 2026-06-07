@@ -106,6 +106,15 @@ def get_nodeport_apps(node_ip, skip_namespaces):
         if m["annotations"].get("gateway.homelab/skip") == "true":
             continue
 
+        url_override = m["annotations"].get("gateway.homelab/url", "")
+        if url_override:
+            apps.append({
+                "name": m["name"], "url": url_override,
+                "description": m["description"], "icon": m["icon"],
+                "namespace": m["namespace"],
+            })
+            continue
+
         node_port = None
         for port in item["spec"].get("ports", []):
             np = port.get("nodePort")

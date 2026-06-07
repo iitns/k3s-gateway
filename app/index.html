@@ -107,16 +107,6 @@
       margin-top: auto;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 0.5rem;
-    }
-
-    .card-url {
-      font-size: 0.72rem;
-      color: #3b82f6;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     .card-ns {
@@ -176,7 +166,6 @@
           <div class="card-name">${esc(a.name)}</div>
           ${a.description ? `<div class="card-desc">${esc(a.description)}</div>` : ''}
           <div class="card-footer">
-            <span class="card-url">${esc(a.url)}</span>
             <span class="card-ns">${esc(a.namespace)}</span>
           </div>
         </a>

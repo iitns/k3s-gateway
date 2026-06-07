@@ -29,6 +29,9 @@ def k8s_get(path):
 
 
 def get_node_ip():
+    override = os.environ.get("NODE_IP", "")
+    if override:
+        return override
     data = k8s_get("/api/v1/nodes")
     for node in data.get("items", []):
         for addr in node.get("status", {}).get("addresses", []):

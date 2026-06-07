@@ -10,6 +10,12 @@ K8S_HOST = "https://kubernetes.default.svc"
 PORT = int(os.environ.get("PORT", "8080"))
 HTML_PATH = Path(__file__).parent / "index.html"
 
+SKIP_NAMESPACES = {
+    "kube-system", "kube-public", "kube-node-lease",
+    "argocd", "gateway", "traefik", "monitoring",
+    "headscale", "default", "cert-manager", "longhorn-system",
+}
+
 
 def k8s_get(path):
     token = (SA_PATH / "token").read_text()
@@ -22,39 +28,108 @@ def k8s_get(path):
         return json.loads(resp.read())
 
 
-def get_apps():
+def get_node_ip():
+    data = k8s_get("/api/v1/nodes")
+    for node in data.get("items", []):
+        for addr in node.get("status", {}).get("addresses", []):
+            if addr["type"] == "InternalIP":
+                return addr["address"]
+    return "127.0.0.1"
+
+
+def _app_meta(meta):
+    annotations = meta.get("annotations", {})
+    labels = meta.get("labels", {})
+    return {
+        "name": (
+            annotations.get("gateway.homelab/name")
+            or labels.get("app.kubernetes.io/name")
+            or meta["name"]
+        ),
+        "description": annotations.get("gateway.homelab/description", ""),
+        "icon": annotations.get("gateway.homelab/icon", ""),
+        "namespace": meta["namespace"],
+        "annotations": annotations,
+    }
+
+
+def get_ingress_apps():
     data = k8s_get("/apis/networking.k8s.io/v1/ingresses")
     apps = []
     seen_hosts = set()
 
     for item in data.get("items", []):
         meta = item["metadata"]
-        annotations = meta.get("annotations", {})
-        labels = meta.get("labels", {})
+        if meta["namespace"] in SKIP_NAMESPACES:
+            continue
 
-        name = (
-            annotations.get("gateway.homelab/name")
-            or labels.get("app.kubernetes.io/name")
-            or meta["name"]
-        )
-        description = annotations.get("gateway.homelab/description", "")
-        icon = annotations.get("gateway.homelab/icon", "")
+        m = _app_meta(meta)
+        url_override = m["annotations"].get("gateway.homelab/url", "")
+
+        if url_override:
+            apps.append({
+                "name": m["name"], "url": url_override,
+                "description": m["description"], "icon": m["icon"],
+                "namespace": m["namespace"],
+            })
+            continue
 
         for rule in item.get("spec", {}).get("rules", []):
             host = rule.get("host", "")
             if host and host not in seen_hosts:
                 seen_hosts.add(host)
                 apps.append({
-                    "name": name,
-                    "url": f"https://{host}",
-                    "description": description,
-                    "icon": icon,
-                    "namespace": meta["namespace"],
+                    "name": m["name"], "url": f"https://{host}",
+                    "description": m["description"], "icon": m["icon"],
+                    "namespace": m["namespace"],
                 })
                 break
 
-    apps.sort(key=lambda x: x["name"].lower())
     return apps
+
+
+def get_nodeport_apps(node_ip, skip_namespaces):
+    data = k8s_get("/api/v1/services")
+    apps = []
+
+    for item in data.get("items", []):
+        if item["spec"].get("type") != "NodePort":
+            continue
+        meta = item["metadata"]
+        if meta["namespace"] in skip_namespaces:
+            continue
+
+        m = _app_meta(meta)
+        if m["annotations"].get("gateway.homelab/skip") == "true":
+            continue
+
+        node_port = None
+        for port in item["spec"].get("ports", []):
+            np = port.get("nodePort")
+            if np:
+                if port.get("port") == 80 or node_port is None:
+                    node_port = np
+
+        if node_port:
+            apps.append({
+                "name": m["name"], "url": f"http://{node_ip}:{node_port}",
+                "description": m["description"], "icon": m["icon"],
+                "namespace": m["namespace"],
+            })
+
+    return apps
+
+
+def get_apps():
+    ingress_apps = get_ingress_apps()
+    ingress_namespaces = {a["namespace"] for a in ingress_apps}
+
+    node_ip = get_node_ip()
+    nodeport_apps = get_nodeport_apps(node_ip, SKIP_NAMESPACES | ingress_namespaces)
+
+    all_apps = ingress_apps + nodeport_apps
+    all_apps.sort(key=lambda x: x["name"].lower())
+    return all_apps
 
 
 class Handler(BaseHTTPRequestHandler):

@@ -49,6 +49,8 @@ spec:
         app: gateway
     spec:
       serviceAccountName: gateway
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: gateway
           image: ghcr.io/iitns/k3s-gateway:sha-de28165

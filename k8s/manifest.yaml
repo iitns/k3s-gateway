@@ -53,7 +53,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: gateway
-          image: ghcr.io/iitns/k3s-gateway:sha-de28165
+          image: ghcr.io/iitns/k3s-gateway:sha-5993f4d
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

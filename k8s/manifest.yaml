@@ -51,7 +51,7 @@ spec:
       serviceAccountName: gateway
       containers:
         - name: gateway
-          image: ghcr.io/iitns/k3s-gateway:sha-1a2ad6a
+          image: ghcr.io/iitns/k3s-gateway:sha-de28165
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
